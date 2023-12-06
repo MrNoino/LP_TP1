@@ -1,4 +1,4 @@
-package com.lp.tp1.ui.theme
+package com.lp.tp1.frontend.ui.theme
 
 import android.app.Activity
 import android.os.Build

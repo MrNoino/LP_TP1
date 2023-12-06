@@ -1,4 +1,4 @@
-package com.lp.tp1.ui.theme
+package com.lp.tp1.frontend.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

@@ -4,19 +4,17 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.navigation.NavArgument
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.lp.tp1.frontend.Routes
-import com.lp.tp1.frontend.screens.scanner_screen.ScannerScreen
+import com.lp.tp1.frontend.screens.scanner.ScannerScreen
+import com.lp.tp1.frontend.screens.switchboard.SwitchboardScreen
 import com.lp.tp1.frontend.ui.theme.Lp_tp1Theme
+import java.net.URLDecoder
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,8 +34,19 @@ class MainActivity : ComponentActivity() {
                             ScannerScreen(navController = navController)
                         }
 
-                        composable(Routes.Preview){
+                        composable(
+                            "${Routes.Switchboard}/{link}",
+                            arguments = listOf(
+                                navArgument("link"){type = NavType.StringType}
+                            )
+                        ){backstack->
 
+                            val link = URLDecoder.decode(backstack.arguments?.getString("link") ?: "", "UTF-8")
+
+                            SwitchboardScreen(
+                                navController = navController,
+                                link = link
+                            )
                         }
                     }
                 }
@@ -45,3 +54,5 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+//TODO: Request,

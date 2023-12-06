@@ -1,4 +1,4 @@
-package com.lp.tp1.frontend.screens.scanner_screen
+package com.lp.tp1.frontend.screens.scanner
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -133,7 +133,7 @@ fun ScannerScreen(
                         val barcodeAnalyser = BarCodeAnalyser { barcodes ->
                             barcodes.forEach { barcode ->
                                 barcode.rawValue?.let { barcodeValue ->
-                                    vm.checkQrCode(barcodeValue)
+                                    vm.checkQrCode(barcodeValue, navController)
                                 }
                             }
                         }
@@ -157,30 +157,6 @@ fun ScannerScreen(
                     }, ContextCompat.getMainExecutor(context))
                 }
             )
-
-            Box(
-                modifier = Modifier.fillMaxSize().padding(16.dp),
-                contentAlignment = Alignment.BottomCenter
-            ){
-
-                if(uiState.showGoButton){
-                    Button(
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .padding(),
-                        onClick = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-
-                        Text(
-                            text = "Ver Planta",
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                    }
-                }
-            }
         }
     }
 }

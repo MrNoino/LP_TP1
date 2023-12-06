@@ -157,6 +157,8 @@ fun ScannerScreen(
                     }, ContextCompat.getMainExecutor(context))
                 }
             )
+
+            Text(text = "Abra")
         }
     }
 }

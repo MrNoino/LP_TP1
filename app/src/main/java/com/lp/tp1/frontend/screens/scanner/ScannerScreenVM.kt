@@ -1,5 +1,6 @@
 package com.lp.tp1.frontend.screens.scanner
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.navigation.NavHostController
 import com.lp.tp1.frontend.goToSwitchboard
@@ -16,7 +17,6 @@ class ScannerScreenVM: ViewModel() {
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState = _uiState.asStateFlow()
-
 
     fun checkQrCode(barCodeValue: String, navController: NavHostController){
         if(barCodeValue.startsWith("https://lp-tp1-api.vercel.app/")){

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -23,6 +24,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
@@ -31,6 +34,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import coil.compose.AsyncImage
 import com.google.common.util.concurrent.ListenableFuture
 import com.lp.tp1.R
 import com.lp.tp1.backend.BarCodeAnalyser
@@ -51,76 +55,91 @@ fun SwitchboardScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val uiState = vm.uiState.collectAsState().value
 
-    LaunchedEffect(uiState.requestedLoading){
-        if(!uiState.requestedLoading){ vm.load(link) }
+    LaunchedEffect(uiState.requestedLoading) {
+        if (!uiState.requestedLoading) {
+            vm.load(link)
+        }
     }
 
-    Column {
 
-        if(!uiState.isLoading){
+    if (!uiState.isLoading) {
 
-            Box {
-                AndroidView(
-                    factory = { androidViewContext ->
-                        PreviewView(androidViewContext).apply {
-                            this.scaleType = PreviewView.ScaleType.FILL_CENTER
-                            layoutParams = ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                            )
-                            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+        Box {
+            AndroidView(
+                factory = { androidViewContext ->
+                    PreviewView(androidViewContext).apply {
+                        this.scaleType = PreviewView.ScaleType.FILL_CENTER
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                        )
+                        implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+
+                update = { previewView ->
+                    val cameraSelector: CameraSelector = CameraSelector.Builder()
+                        .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+                        .build()
+
+                    val cameraProviderFuture: ListenableFuture<ProcessCameraProvider> =
+                        ProcessCameraProvider.getInstance(context)
+
+                    cameraProviderFuture.addListener({
+                        val preview = Preview.Builder().build().also {
+                            it.setSurfaceProvider(previewView.surfaceProvider)
                         }
-                    },
-                    modifier = Modifier.fillMaxSize(),
+                        val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
 
-                    update = { previewView ->
-                        val cameraSelector: CameraSelector = CameraSelector.Builder()
-                            .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+                        val imageAnalysis: ImageAnalysis = ImageAnalysis.Builder()
+                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                             .build()
 
-                        val cameraProviderFuture: ListenableFuture<ProcessCameraProvider> =
-                            ProcessCameraProvider.getInstance(context)
-
-                        cameraProviderFuture.addListener({
-                            val preview = Preview.Builder().build().also {
-                                it.setSurfaceProvider(previewView.surfaceProvider)
-                            }
-                            val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-
-                            val imageAnalysis: ImageAnalysis = ImageAnalysis.Builder()
-                                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                                .build()
-
-                            try {
-                                cameraProvider.unbindAll()
-                                cameraProvider.bindToLifecycle(
-                                    lifecycleOwner,
-                                    cameraSelector,
-                                    preview,
-                                    imageAnalysis
-                                )
-                            } catch (_: Exception) {
-                            }
-                        }, ContextCompat.getMainExecutor(context))
-                    }
-                )
-
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    contentAlignment = Alignment.CenterEnd
-                ){
-                    Button(
-                        onClick = {  }
-                    ) {
-                        Icon(
-                            modifier = Modifier.size(30.dp),
-                            painter = painterResource(id = R.drawable.flash),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary
-                        )
-                    }
+                        try {
+                            cameraProvider.unbindAll()
+                            cameraProvider.bindToLifecycle(
+                                lifecycleOwner,
+                                cameraSelector,
+                                preview,
+                                imageAnalysis
+                            )
+                        } catch (_: Exception) {
+                        }
+                    }, ContextCompat.getMainExecutor(context))
                 }
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Button(
+                    onClick = { }
+                ) {
+                    Icon(
+                        modifier = Modifier.size(30.dp),
+                        painter = painterResource(id = R.drawable.flash),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
+
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomEnd){
+                AsyncImage(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .alpha(0.7f),
+                    model = uiState.imageUrl,
+                    contentDescription = null
+                )
             }
         }
     }
+
 }

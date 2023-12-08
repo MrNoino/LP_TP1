@@ -1,10 +1,10 @@
 package com.lp.tp1.frontend.screens.scanner
 
 import android.Manifest
-import android.content.Context
 import android.content.pm.PackageManager
-import android.hardware.camera2.CameraManager
+import android.util.Log
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -26,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,12 +57,21 @@ fun ScannerScreen(
 
     val uiState = vm.uiState.collectAsState().value
     val context = LocalContext.current
-    val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-    val cameraId = cameraManager.cameraIdList[0]
-    val turnOn = remember{ mutableStateOf(true) }
-
-
     val lifecycleOwner = LocalLifecycleOwner.current
+    val turnOnFlash = remember { mutableStateOf(false) }
+    val cameraSelector: CameraSelector = CameraSelector.Builder()
+        .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+        .build()
+    val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    val cameraProviderFuture: ListenableFuture<ProcessCameraProvider> =
+        ProcessCameraProvider.getInstance(context)
+
+    val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+
+    val camera =
+        cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector)
+
+
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -110,11 +120,70 @@ fun ScannerScreen(
         }
     } else {
 
-        Column {
+
+        Box(
+            Modifier
+                .fillMaxSize()
+        ) {
+            AndroidView(
+                factory = { androidViewContext ->
+                    PreviewView(androidViewContext).apply {
+                        this.scaleType = PreviewView.ScaleType.FILL_CENTER
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                        )
+                        implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+                update = { previewView ->
+
+                    cameraProviderFuture.addListener({
+                        val preview = Preview.Builder().build().also {
+                            it.setSurfaceProvider(previewView.surfaceProvider)
+                        }
+
+                        val barcodeAnalyser = BarCodeAnalyser { barcodes ->
+                            barcodes.forEach { barcode ->
+                                camera.cameraControl.enableTorch(turnOnFlash.value)
+                                barcode.rawValue?.let { barcodeValue ->
+                                    vm.checkQrCode(barcodeValue, navController)
+                                }
+                            }
+                        }
+                        val imageAnalysis: ImageAnalysis = ImageAnalysis.Builder()
+                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                            .build()
+                            .also {
+                                it.setAnalyzer(cameraExecutor, barcodeAnalyser)
+                            }
+
+                        try {
+                            cameraProvider.unbindAll()
+                            cameraProvider.bindToLifecycle(
+                                lifecycleOwner,
+                                cameraSelector,
+                                preview,
+                                imageAnalysis
+                            )
+
+
+                        } catch (_: Exception) {
+                        }
+                    }, ContextCompat.getMainExecutor(context))
+                }
+            )
+        }
+
+        Box(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            contentAlignment = Alignment.CenterEnd
+        ) {
             Button(
                 onClick = {
-                    turnOn.value = false
-                    cameraManager.setTorchMode(cameraId, turnOn.value)
+                    turnOnFlash.value = true
+                    Toast.makeText(context, "Nao funciona", Toast.LENGTH_SHORT).show()
                 }
             ) {
                 Icon(
@@ -122,66 +191,6 @@ fun ScannerScreen(
                     painter = painterResource(id = R.drawable.flash),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimary
-                )
-            }
-
-            Box {
-
-                AndroidView(
-                    factory = { androidViewContext ->
-                        PreviewView(androidViewContext).apply {
-                            this.scaleType = PreviewView.ScaleType.FILL_CENTER
-                            layoutParams = ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                            )
-                            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize(),
-                    update = { previewView ->
-                        val cameraSelector: CameraSelector = CameraSelector.Builder()
-                            .requireLensFacing(CameraSelector.LENS_FACING_BACK)
-                            .build()
-                        val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
-                        val cameraProviderFuture: ListenableFuture<ProcessCameraProvider> =
-                            ProcessCameraProvider.getInstance(context)
-
-
-
-                        cameraManager.setTorchMode(cameraId, turnOn.value)
-
-                        cameraProviderFuture.addListener({
-                            val preview = Preview.Builder().build().also {
-                                it.setSurfaceProvider(previewView.surfaceProvider)
-                            }
-                            val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-                            val barcodeAnalyser = BarCodeAnalyser { barcodes ->
-                                barcodes.forEach { barcode ->
-                                    barcode.rawValue?.let { barcodeValue ->
-                                        vm.checkQrCode(barcodeValue, navController)
-                                    }
-                                }
-                            }
-                            val imageAnalysis: ImageAnalysis = ImageAnalysis.Builder()
-                                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                                .build()
-                                .also {
-                                    it.setAnalyzer(cameraExecutor, barcodeAnalyser)
-                                }
-
-                            try {
-                                cameraProvider.unbindAll()
-                                cameraProvider.bindToLifecycle(
-                                    lifecycleOwner,
-                                    cameraSelector,
-                                    preview,
-                                    imageAnalysis
-                                )
-                            } catch (_: Exception) {
-                            }
-                        }, ContextCompat.getMainExecutor(context))
-                    }
                 )
             }
         }

@@ -18,7 +18,8 @@ class SwitchboardScreenVM : ViewModel() {
     data class UiState(
         val requestedLoading: Boolean = false,
         val isLoading: Boolean = true,
-        val responseText: String = ""
+        val responseText: String = "",
+        val imageUrl: String = ""
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -40,7 +41,8 @@ class SwitchboardScreenVM : ViewModel() {
                         _uiState.update {
                             uiState.value.copy(
                                 isLoading = false,
-                                responseText = response.body() ?: ""
+                                responseText = response.body() ?: "",
+                                imageUrl = "https://lp-tp1-api.vercel.app/blueprints/${data.blueprintFilename}/"
                             )
                         }
                     } catch (e: Exception) {

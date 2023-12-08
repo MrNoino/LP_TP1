@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -31,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +48,9 @@ import androidx.navigation.NavHostController
 import com.google.common.util.concurrent.ListenableFuture
 import com.lp.tp1.R
 import com.lp.tp1.backend.BarCodeAnalyser
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -59,17 +64,16 @@ fun ScannerScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val turnOnFlash = remember { mutableStateOf(false) }
-    val cameraSelector: CameraSelector = CameraSelector.Builder()
-        .requireLensFacing(CameraSelector.LENS_FACING_BACK)
-        .build()
-    val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+
     val cameraProviderFuture: ListenableFuture<ProcessCameraProvider> =
         ProcessCameraProvider.getInstance(context)
 
     val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
 
-    val camera =
-        cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector)
+
+    LaunchedEffect(turnOnFlash.value) {
+        Toast.makeText(context, turnOnFlash.value.toString(), Toast.LENGTH_SHORT).show()
+    }
 
 
     var hasCameraPermission by remember {
@@ -136,63 +140,82 @@ fun ScannerScreen(
                         implementationMode = PreviewView.ImplementationMode.COMPATIBLE
                     }
                 },
-                modifier = Modifier.fillMaxSize(),
-                update = { previewView ->
+                modifier = Modifier.fillMaxSize()
+            ) { previewView ->
 
-                    cameraProviderFuture.addListener({
-                        val preview = Preview.Builder().build().also {
-                            it.setSurfaceProvider(previewView.surfaceProvider)
-                        }
+                val cameraSelector: CameraSelector = CameraSelector.Builder()
+                    .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+                    .build()
 
-                        val barcodeAnalyser = BarCodeAnalyser { barcodes ->
-                            barcodes.forEach { barcode ->
-                                camera.cameraControl.enableTorch(turnOnFlash.value)
-                                barcode.rawValue?.let { barcodeValue ->
-                                    vm.checkQrCode(barcodeValue, navController)
-                                }
+                val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+
+
+
+
+
+                cameraProviderFuture.addListener({
+                    val preview = Preview.Builder().build().also {
+                        it.setSurfaceProvider(previewView.surfaceProvider)
+                    }
+
+
+                    val barcodeAnalyser = BarCodeAnalyser { barcodes ->
+
+                        barcodes.forEach { barcode ->
+                            barcode.rawValue?.let { barcodeValue ->
+                                vm.checkQrCode(barcodeValue, navController, cameraProvider)
                             }
                         }
-                        val imageAnalysis: ImageAnalysis = ImageAnalysis.Builder()
-                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    }
+                    val imageAnalysis: ImageAnalysis = ImageAnalysis.Builder()
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .build()
+                        .also {
+                            it.setAnalyzer(cameraExecutor, barcodeAnalyser)
+                        }
+
+                    try {
+
+                        cameraProvider.unbindAll()
+                        cameraProvider.bindToLifecycle(
+                            lifecycleOwner,
+                            cameraSelector,
+                            preview,
+                            imageAnalysis
+                        )
+
+                        val imageCapture = ImageCapture.Builder()
+                            .setFlashMode(if (turnOnFlash.value) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF)
                             .build()
-                            .also {
-                                it.setAnalyzer(cameraExecutor, barcodeAnalyser)
-                            }
 
-                        try {
-                            cameraProvider.unbindAll()
-                            cameraProvider.bindToLifecycle(
-                                lifecycleOwner,
-                                cameraSelector,
-                                preview,
-                                imageAnalysis
-                            )
+                        val camera = cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, preview, imageCapture, imageAnalysis)
 
-
-                        } catch (_: Exception) {
+                        if(camera.cameraInfo.hasFlashUnit()){
+                            camera.cameraControl.enableTorch(turnOnFlash.value)
                         }
-                    }, ContextCompat.getMainExecutor(context))
-                }
-            )
-        }
-
-        Box(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            contentAlignment = Alignment.CenterEnd
-        ) {
-            Button(
-                onClick = {
-                    turnOnFlash.value = true
-                    Toast.makeText(context, "Nao funciona", Toast.LENGTH_SHORT).show()
-                }
+                    } catch (_: Exception) {}
+                }, ContextCompat.getMainExecutor(context))
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                contentAlignment = Alignment.CenterEnd
             ) {
-                Icon(
-                    modifier = Modifier.size(30.dp),
-                    painter = painterResource(id = R.drawable.flash),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimary
-                )
+                Button(
+                    onClick = {
+                        turnOnFlash.value = !turnOnFlash.value
+                    }
+                ) {
+                    Icon(
+                        modifier = Modifier.size(30.dp),
+                        painter = painterResource(id = R.drawable.flash),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
             }
         }
+
     }
 }

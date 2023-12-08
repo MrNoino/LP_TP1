@@ -2,15 +2,20 @@ package com.lp.tp1.frontend.screens.switchboard
 
 import android.content.Context
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +27,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -29,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -54,6 +62,7 @@ fun SwitchboardScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val uiState = vm.uiState.collectAsState().value
+    val turnOnFlash = remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.requestedLoading) {
         if (!uiState.requestedLoading) {
@@ -62,9 +71,11 @@ fun SwitchboardScreen(
     }
 
 
-    if (!uiState.isLoading) {
+    if (vm.isNetworkAvailable()) {
 
-        Box {
+        if (!uiState.isLoading) {
+
+
             AndroidView(
                 factory = { androidViewContext ->
                     PreviewView(androidViewContext).apply {
@@ -83,20 +94,24 @@ fun SwitchboardScreen(
                         .requireLensFacing(CameraSelector.LENS_FACING_BACK)
                         .build()
 
+                    val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+
                     val cameraProviderFuture: ListenableFuture<ProcessCameraProvider> =
                         ProcessCameraProvider.getInstance(context)
+
+                    val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
 
                     cameraProviderFuture.addListener({
                         val preview = Preview.Builder().build().also {
                             it.setSurfaceProvider(previewView.surfaceProvider)
                         }
-                        val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
 
                         val imageAnalysis: ImageAnalysis = ImageAnalysis.Builder()
                             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                             .build()
 
                         try {
+
                             cameraProvider.unbindAll()
                             cameraProvider.bindToLifecycle(
                                 lifecycleOwner,
@@ -104,8 +119,17 @@ fun SwitchboardScreen(
                                 preview,
                                 imageAnalysis
                             )
-                        } catch (_: Exception) {
-                        }
+
+                            val imageCapture = ImageCapture.Builder()
+                                .setFlashMode(if (turnOnFlash.value) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF)
+                                .build()
+
+                            val camera = cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, preview, imageCapture, imageAnalysis)
+
+                            if(camera.cameraInfo.hasFlashUnit()){
+                                camera.cameraControl.enableTorch(turnOnFlash.value)
+                            }
+                        } catch (_: Exception) {}
                     }, ContextCompat.getMainExecutor(context))
                 }
             )
@@ -117,7 +141,10 @@ fun SwitchboardScreen(
                 contentAlignment = Alignment.CenterEnd
             ) {
                 Button(
-                    onClick = { }
+                    onClick = {
+                        turnOnFlash.value = !turnOnFlash.value
+                        Toast.makeText(context, turnOnFlash.value.toString(), Toast.LENGTH_SHORT).show()
+                    }
                 ) {
                     Icon(
                         modifier = Modifier.size(30.dp),
@@ -128,7 +155,7 @@ fun SwitchboardScreen(
                 }
             }
 
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomEnd){
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomEnd) {
                 AsyncImage(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -139,7 +166,29 @@ fun SwitchboardScreen(
                     contentDescription = null
                 )
             }
+
+        }
+    } else {
+
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+
+            Icon(
+                modifier = Modifier.size(100.dp),
+                painter = painterResource(id = R.drawable.no_wifi),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onBackground
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Sem conectividade",
+                fontWeight = FontWeight.Medium
+            )
         }
     }
-
 }

@@ -1,7 +1,10 @@
 package com.lp.tp1.backend
 
-class DefaultAppContainer: AppContainer{
-    override val defaultAppContainer: DefaultAppContainer by lazy {
-        DefaultAppContainer()
+import android.app.Application
+import com.lp.tp1.backend.repositories.UtilsRepository
+
+class DefaultAppContainer(application: Application): AppContainer{
+    override val utilsRepository: UtilsRepository by lazy {
+        UtilsRepository(application)
     }
 }

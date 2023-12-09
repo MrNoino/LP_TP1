@@ -72,7 +72,6 @@ fun ScannerScreen(
 
 
     LaunchedEffect(turnOnFlash.value) {
-        Toast.makeText(context, turnOnFlash.value.toString(), Toast.LENGTH_SHORT).show()
     }
 
 
@@ -124,7 +123,6 @@ fun ScannerScreen(
         }
     } else {
 
-
         Box(
             Modifier
                 .fillMaxSize()
@@ -148,10 +146,6 @@ fun ScannerScreen(
                     .build()
 
                 val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
-
-
-
-
 
                 cameraProviderFuture.addListener({
                     val preview = Preview.Builder().build().also {
@@ -209,13 +203,12 @@ fun ScannerScreen(
                 ) {
                     Icon(
                         modifier = Modifier.size(30.dp),
-                        painter = painterResource(id = R.drawable.flash),
+                        painter = painterResource(id = if(turnOnFlash.value) R.drawable.flash_slash else R.drawable.flash),
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
             }
         }
-
     }
 }
